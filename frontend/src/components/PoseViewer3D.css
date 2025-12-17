@@ -1,0 +1,134 @@
+.pose-viewer-3d {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pose-viewer-3d.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  z-index: 1000;
+}
+
+.viewer-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+}
+
+.view-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.view-presets button {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-presets button:hover {
+  background: rgba(51, 65, 85, 0.9);
+  color: #e2e8f0;
+}
+
+.view-presets button.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.close-btn {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid #334155;
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: white;
+}
+
+.viewer-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.9);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.viewer-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewer-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.viewer-legend .dot.face {
+  background: #f59e0b;
+}
+
+.viewer-legend .dot.arms {
+  background: #3b82f6;
+}
+
+.viewer-legend .dot.legs {
+  background: #10b981;
+}
+
+.viewer-legend .dot.torso {
+  background: #e2e8f0;
+}
+
+.info-label {
+  background: rgba(15, 23, 42, 0.9);
+  color: #94a3b8;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Canvas styling */
+.pose-viewer-3d canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+

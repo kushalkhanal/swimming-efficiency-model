@@ -1,0 +1,25 @@
+.frame-navigator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  background: #1e293b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+}
+
+.frame-navigator button {
+  background: #38bdf8;
+  border: none;
+  color: #0f172a;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.frame-navigator button:hover {
+  background: #0ea5e9;
+}
+

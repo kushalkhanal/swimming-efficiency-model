@@ -1,0 +1,136 @@
+.dashboard-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.panel {
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.video-panel {
+  grid-column: 1 / -1;
+}
+
+.metrics-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+.metrics-charts {
+  display: grid;
+  gap: 1rem;
+  min-height: 360px;
+}
+
+.feedback-panel-wrapper {
+  display: grid;
+  gap: 1rem;
+}
+
+.upload-bar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.upload-label {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.upload-label input {
+  display: none;
+}
+
+/* Side-by-side Video + Pose Layout */
+.video-pose-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 400px;
+}
+
+@media (max-width: 1200px) {
+  .video-pose-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.video-side {
+  min-height: 300px;
+}
+
+.pose-side {
+  display: flex;
+  flex-direction: column;
+  background: #0f172a;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pose-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.pose-header span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.toggle-3d {
+  background: #334155;
+  border: none;
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-3d:hover {
+  background: #475569;
+  color: #e2e8f0;
+}
+
+.toggle-3d.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.pose-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  gap: 8px;
+}
+
+.pose-placeholder span {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.pose-placeholder p {
+  margin: 0;
+  font-size: 14px;
+}
+
