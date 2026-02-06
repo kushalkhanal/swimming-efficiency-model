@@ -167,10 +167,12 @@ def setup_logging(
         root_logger.addHandler(error_handler)
     
     # Quiet noisy libraries
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)  # Suppress WebSocket errors
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("PIL").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("engineio").setLevel(logging.ERROR)
+    logging.getLogger("socketio").setLevel(logging.ERROR)
 
 
 def get_logger(name: str) -> ContextLogger:

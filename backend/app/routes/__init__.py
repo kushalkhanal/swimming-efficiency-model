@@ -9,6 +9,9 @@ from .uploads import upload_bp
 from .metrics import metrics_bp
 from .frames import frames_bp
 from .reports import reports_bp
+from .frame_analytics import frame_analytics_bp
+from .videos import videos_bp
+from .reference_videos import reference_videos_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -22,4 +25,8 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(metrics_bp, url_prefix="/api/v1")
     app.register_blueprint(frames_bp, url_prefix="/api/v1")
     app.register_blueprint(reports_bp, url_prefix="/api/v1")
+    app.register_blueprint(frame_analytics_bp, url_prefix="/api/v1")
+    app.register_blueprint(videos_bp, url_prefix="/api/v1")
+    app.register_blueprint(reference_videos_bp, url_prefix="/api/v1")
+
 

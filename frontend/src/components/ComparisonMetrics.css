@@ -1,0 +1,68 @@
+.comparison-metrics {
+    padding: 24px;
+    background: #1e293b;
+    border-top: 2px solid #334155;
+}
+
+.comparison-metrics h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    color: #f59e0b;
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #0f172a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.metrics-table thead {
+    background: #334155;
+}
+
+.metrics-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 14px;
+    color: #e2e8f0;
+    border-bottom: 2px solid #475569;
+}
+
+.metrics-table td {
+    padding: 12px;
+    font-size: 14px;
+    color: #cbd5e1;
+    border-bottom: 1px solid #334155;
+}
+
+.metrics-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.metrics-table tbody tr:hover {
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.metric-name {
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+.diff {
+    font-weight: 600;
+}
+
+.diff.close {
+    color: #10b981;
+}
+
+.diff.below {
+    color: #ef4444;
+}
+
+.diff.above {
+    color: #f59e0b;
+}

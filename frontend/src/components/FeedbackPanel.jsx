@@ -1,12 +1,15 @@
+import { memo, useMemo, useCallback } from "react";
 import PropTypes from "prop-types";
 import "./FeedbackPanel.css";
 
 /**
  * Displays coaching-focused feedback with plain-language explanations
  * and timeline-based analysis.
+ * Memoized to prevent unnecessary re-renders.
  */
-function FeedbackPanel({ summary = "", phaseBreakdown = null, keyMetrics = null, coaching = null }) {
-  const formatPhaseBreakdown = (breakdown) => {
+const FeedbackPanel = memo(function FeedbackPanel({ summary = "", phaseBreakdown = null, keyMetrics = null, coaching = null }) {
+  // Memoize helper functions
+  const formatPhaseBreakdown = useCallback((breakdown) => {
     if (!breakdown || typeof breakdown === "string") return breakdown;
     return Object.entries(breakdown)
       .map(([phase, data]) => {
@@ -16,9 +19,9 @@ function FeedbackPanel({ summary = "", phaseBreakdown = null, keyMetrics = null,
         return `${phase}: ${data}`;
       })
       .join("\n");
-  };
+  }, []);
 
-  const getRatingColor = (rating) => {
+  const getRatingColor = useCallback((rating) => {
     switch (rating) {
       case "excellent": return "#10b981";
       case "good": return "#3b82f6";
@@ -26,22 +29,28 @@ function FeedbackPanel({ summary = "", phaseBreakdown = null, keyMetrics = null,
       case "poor": return "#ef4444";
       default: return "#94a3b8";
     }
-  };
+  }, []);
 
-  const getStatusColor = (status) => {
+  const getStatusColor = useCallback((status) => {
     switch (status) {
       case "excellent": return "#10b981";
       case "good": return "#3b82f6";
       case "needs_work": return "#f59e0b";
       default: return "#94a3b8";
     }
-  };
+  }, []);
 
-  const formatTime = (seconds) => {
+  const formatTime = useCallback((seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  }, []);
+  
+  // Memoize formatted phase breakdown
+  const formattedPhaseBreakdown = useMemo(() => 
+    formatPhaseBreakdown(phaseBreakdown),
+    [phaseBreakdown, formatPhaseBreakdown]
+  );
 
   // If we have coaching data, show the new coaching-focused UI
   if (coaching) {
@@ -179,13 +188,13 @@ function FeedbackPanel({ summary = "", phaseBreakdown = null, keyMetrics = null,
             fontSize: "13px",
             overflowX: "auto"
           }}>
-            {formatPhaseBreakdown(phaseBreakdown)}
+            {formattedPhaseBreakdown}
           </pre>
         </div>
       )}
     </section>
   );
-}
+});
 
 FeedbackPanel.propTypes = {
   summary: PropTypes.string,

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 import numpy as np
 
@@ -58,34 +60,98 @@ def _build_mediapipe_solution():
     )
 
 
-def extract_poses_2d(frames: Iterable[DetectedFrame]) -> list[Pose2DResult]:
+def _process_frame_pose(args: tuple) -> Pose2DResult | None:
+    """Helper function for parallel pose estimation."""
+    detected, pose = args
+    try:
+        mp_result = pose.process(detected.image[:, :, ::-1])  # BGR -> RGB
+        if not mp_result.pose_landmarks:
+            return None
+
+        keypoints = np.array(
+            [
+                [
+                    landmark.x,
+                    landmark.y,
+                    landmark.z,
+                    landmark.visibility,
+                ]
+                for landmark in mp_result.pose_landmarks.landmark
+            ],
+            dtype=np.float32,
+        )
+
+        return Pose2DResult(frame_index=detected.frame_index, keypoints=keypoints)
+    except Exception as e:
+        print(f"Error processing pose for frame {detected.frame_index}: {e}")
+        return None
+
+
+def extract_poses_2d(frames: Iterable[DetectedFrame], max_workers: int | None = None) -> list[Pose2DResult]:
     """
     Run MediaPipe Pose on each frame and return 33-keypoint landmarks.
+    Uses parallel processing for better performance.
+    
+    Args:
+        frames: Iterable of DetectedFrame objects
+        max_workers: Number of parallel workers (default: CPU count)
     """
+    frames_list = list(frames)
+    if not frames_list:
+        return []
+    
+    # Determine number of workers
+    if max_workers is None:
+        max_workers = min(os.cpu_count() or 4, 8)  # Limit to 8
+    
     pose_solution = _build_mediapipe_solution()
     results: list[Pose2DResult] = []
 
-    with pose_solution as pose:
-        for detected in frames:
-            mp_result = pose.process(detected.image[:, :, ::-1])  # BGR -> RGB
-            if not mp_result.pose_landmarks:
-                continue
+    # MediaPipe Pose solution needs to be shared across threads
+    # Each thread will create its own pose processor
+    def process_batch(frame_batch: list[DetectedFrame]) -> list[Pose2DResult]:
+        """Process a batch of frames with a single pose processor."""
+        batch_results = []
+        pose = _build_mediapipe_solution()
+        try:
+            for detected in frame_batch:
+                mp_result = pose.process(detected.image[:, :, ::-1])  # BGR -> RGB
+                if not mp_result.pose_landmarks:
+                    continue
 
-            keypoints = np.array(
-                [
+                keypoints = np.array(
                     [
-                        landmark.x,
-                        landmark.y,
-                        landmark.z,
-                        landmark.visibility,
-                    ]
-                    for landmark in mp_result.pose_landmarks.landmark
-                ],
-                dtype=np.float32,
-            )
+                        [
+                            landmark.x,
+                            landmark.y,
+                            landmark.z,
+                            landmark.visibility,
+                        ]
+                        for landmark in mp_result.pose_landmarks.landmark
+                    ],
+                    dtype=np.float32,
+                )
 
-            results.append(Pose2DResult(frame_index=detected.frame_index, keypoints=keypoints))
-
+                batch_results.append(Pose2DResult(frame_index=detected.frame_index, keypoints=keypoints))
+        finally:
+            pose.close()
+        return batch_results
+    
+    # Process frames in parallel batches
+    # Split frames into batches for better memory management
+    batch_size = max(1, len(frames_list) // max_workers)
+    batches = [frames_list[i:i + batch_size] for i in range(0, len(frames_list), batch_size)]
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_batch, batch) for batch in batches]
+        
+        for future in as_completed(futures):
+            batch_results = future.result()
+            results.extend(batch_results)
+    
+    # Sort by frame_index to maintain order
+    results.sort(key=lambda x: x.frame_index)
+    
     return results
 
 

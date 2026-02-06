@@ -48,19 +48,31 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
     # Enable CORS for the offline frontend served from localhost.
-    CORS(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}})
+    # Include video routes for comparison page
+    CORS(app, resources={
+        r"/api/*": {"origins": app.config["CORS_ORIGINS"]},
+        r"/videos/*": {"origins": app.config["CORS_ORIGINS"]}
+    })
 
     # Initialize MongoDB client and attach to Flask app context.
     app.mongo = init_mongo(app.config)  # type: ignore[attr-defined]
+    
+    # Create database indexes for optimal query performance
+    with app.app_context():
+        from .db.indexes import ensure_indexes
+        ensure_indexes()
 
     # Register versioned API blueprints.
     register_blueprints(app)
 
     # Initialize SocketIO with the app
+    # Using threading mode with engineio logger disabled to avoid WebSocket errors on Windows
     socketio.init_app(
         app,
-        cors_allowed_origins=app.config["CORS_ORIGINS"],
-        async_mode="threading"
+        cors_allowed_origins="*",
+        async_mode="threading",
+        logger=False,
+        engineio_logger=False,
     )
 
     # Request logging middleware
