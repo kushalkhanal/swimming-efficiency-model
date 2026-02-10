@@ -6,6 +6,8 @@ Write-Host "Starting Backend Server..." -ForegroundColor Green
 # Activate virtual environment
 & ".\.venv\Scripts\Activate.ps1"
 
+#   .\start_backend.ps1
+
 # Navigate to backend directory
 Set-Location backend
 
