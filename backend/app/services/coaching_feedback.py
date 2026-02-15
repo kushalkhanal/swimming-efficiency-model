@@ -187,6 +187,119 @@ def explain_elbow_angle(avg_angle: float, side: str) -> PlainLanguageMetric:
     )
 
 
+def explain_streamline(value: float) -> PlainLanguageMetric:
+    """Explain streamline score in plain language."""
+    rating = get_rating(value, {
+        "excellent": 80,
+        "good": 65,
+        "needs_work": 50
+    })
+    
+    if value >= 80:
+        explanation = "Your body position is excellent! You maintain a tight, efficient streamline."
+        what_it_means = "You're minimizing drag and maximizing efficiency through the water."
+        how_to_improve = None
+    elif value >= 65:
+        explanation = "Your body position is good but could be more efficient."
+        what_it_means = "You have decent streamline but there's room for improvement."
+        how_to_improve = "Focus on keeping hips high and head neutral. Engage core muscles."
+    elif value >= 50:
+        explanation = "Your streamline position needs improvement."
+        what_it_means = "Your body position is creating unnecessary drag, slowing you down."
+        how_to_improve = "Work on body position drills. Keep head down, hips up, and core engaged."
+    else:
+        explanation = "Your streamline is significantly affecting your efficiency."
+        what_it_means = "Poor body position is creating major drag resistance."
+        how_to_improve = "Focus heavily on core stability drills and streamline practice off the wall."
+    
+    return PlainLanguageMetric(
+        name="Streamline Position",
+        technical_name="streamline_score",
+        value=value,
+        rating=rating,
+        explanation=explanation,
+        what_it_means=what_it_means,
+        how_to_improve=how_to_improve
+    )
+
+
+def explain_propulsion_efficiency(efficiency: float, slipping_pct: float) -> PlainLanguageMetric:
+    """Explain propulsion efficiency in plain language."""
+    if slipping_pct < 5:
+        rating = "excellent"
+    elif slipping_pct < 10:
+        rating = "good"
+    elif slipping_pct < 15:
+        rating = "moderate"
+    else:
+        rating = "needs work"
+    
+    if slipping_pct < 5:
+        explanation = f"Excellent water connection! Only {slipping_pct:.1f}% hand slipping detected."
+        what_it_means = "Your hand is gripping the water well and creating effective propulsion."
+        how_to_improve = None
+    elif slipping_pct < 10:
+        explanation = f"Good propulsion with {slipping_pct:.1f}% hand slipping."
+        what_it_means = "Most of your strokes are effective, with minor slipping."
+        how_to_improve = "Focus on early vertical forearm and high elbow catch."
+    elif slipping_pct < 15:
+        explanation = f"Moderate hand slipping detected ({slipping_pct:.1f}%)."
+        what_it_means = "A significant portion of your hand movement isn't creating propulsion."
+        how_to_improve = "Work on catch mechanics. Practice sculling drills to feel the water."
+    else:
+        explanation = f"Significant hand slipping detected ({slipping_pct:.1f}%)."
+        what_it_means = "Your hand is slipping through water instead of gripping it."
+        how_to_improve = "Focus heavily on catch drills. High elbow, early vertical forearm is critical."
+    
+    return PlainLanguageMetric(
+        name="Propulsion Efficiency",
+        technical_name="propulsion_efficiency",
+        value=efficiency,
+        rating=rating,
+        explanation=explanation,
+        what_it_means=what_it_means,
+        how_to_improve=how_to_improve
+    )
+
+
+def explain_entry_exit(entry_score: float, exit_score: float) -> PlainLanguageMetric:
+    """Explain hand entry and exit mechanics in plain language."""
+    avg_score = (entry_score + exit_score) / 2 if entry_score > 0 and exit_score > 0 else entry_score or exit_score
+    
+    rating = get_rating(avg_score, {
+        "excellent": 80,
+        "good": 65,
+        "needs_work": 50
+    })
+    
+    if avg_score >= 80:
+        explanation = f"Great hand entry and exit mechanics (Entry:{entry_score:.0f}/100, Exit:{exit_score:.0f}/100)."
+        what_it_means = "You're entering efficiently and finishing each stroke well."
+        how_to_improve = None
+    elif avg_score >= 65:
+        explanation = f"Decent entry/exit (Entry:{entry_score:.0f}/100, Exit:{exit_score:.0f}/100)."
+        what_it_means = "Your technique is functional but could be optimized."
+        how_to_improve = "Enter at 45° angle, fingertips first. Finish past your hip."
+    elif avg_score >= 50:
+        explanation = f"Entry/exit needs work (Entry:{entry_score:.0f}/100, Exit:{exit_score:.0f}/100)."
+        what_it_means = "You're losing efficiency at the start and end of each stroke."
+        how_to_improve = "Practice fingertip entry drills. Focus on complete stroke finish."
+    else:
+        explanation = f"Significant entry/exit issues (Entry:{entry_score:.0f}/100, Exit:{exit_score:.0f}/100)."
+        what_it_means = "Entry and exit mechanics are creating drag and reducing power."
+        how_to_improve = "Work with a coach on entry angle and stroke completion."
+    
+    return PlainLanguageMetric(
+        name="Entry & Exit Quality",
+        technical_name="entry_exit_mechanics",
+        value=avg_score,
+        rating=rating,
+        explanation=explanation,
+        what_it_means=what_it_means,
+        how_to_improve=how_to_improve
+    )
+
+
 def generate_timeline_feedback(
     metrics: dict[str, Any],
     fps: float = 30.0,
@@ -337,6 +450,24 @@ def generate_plain_language_metrics(metrics: dict[str, Any]) -> list[PlainLangua
         if valid_angles:
             avg_right = np.mean(valid_angles)
             explanations.append(explain_elbow_angle(avg_right, "right"))
+    
+    # Streamline Score
+    avg_streamline = metrics.get("avg_streamline", 0)
+    if avg_streamline > 0:
+        explanations.append(explain_streamline(avg_streamline))
+    
+    # Propulsion Efficiency
+    prop_efficiency = metrics.get("propulsion_efficiency", 0)
+    slipping_pct = metrics.get("slipping_percentage", 0)
+    if prop_efficiency > 0 or slipping_pct > 0:
+        explanations.append(explain_propulsion_efficiency(prop_efficiency, slipping_pct))
+    
+    # Entry/Exit Mechanics
+    entry_exit_metrics = metrics.get("entry_exit_metrics", {})
+    entry_score = entry_exit_metrics.get("avg_entry_score", 0)
+    exit_score = entry_exit_metrics.get("avg_exit_score", 0)
+    if entry_score > 0 or exit_score > 0:
+        explanations.append(explain_entry_exit(entry_score, exit_score))
     
     return explanations
 

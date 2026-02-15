@@ -42,20 +42,22 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
       console.log("[VideoTrimmer]   readyState:", video.readyState);
       console.log("[VideoTrimmer]   networkState:", video.networkState);
       console.log("[VideoTrimmer]   src:", video.src);
-      
+
       // If duration is invalid, try to get it differently
       if (!isFinite(dur) || dur <= 0) {
         console.log("[VideoTrimmer] Invalid duration, waiting for more data...");
         return;
       }
-      
+
       setDuration(dur);
       setStartTime(0);
-      // Default end time: min of video duration or maxDuration
-      setEndTime(Math.min(dur, maxDuration));
+      // ENFORCE 60-second maximum: Use the lesser of video duration or 60 seconds
+      const effectiveMaxDuration = Math.min(dur, 60);
+      setEndTime(effectiveMaxDuration);
+      console.log("[VideoTrimmer]   Effective max duration:", effectiveMaxDuration);
     }
   };
-  
+
   // Also listen for durationchange event
   const handleDurationChange = () => {
     const video = videoRef.current;
@@ -63,7 +65,9 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
       console.log("[VideoTrimmer] Duration changed to:", video.duration);
       if (duration === 0 || duration !== video.duration) {
         setDuration(video.duration);
-        setEndTime(Math.min(video.duration, maxDuration));
+        // ENFORCE 60-second maximum
+        const effectiveMaxDuration = Math.min(video.duration, 60);
+        setEndTime(effectiveMaxDuration);
       }
     }
   };
@@ -83,13 +87,15 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
   // Handle start time change
   const handleStartChange = (e) => {
     const newStart = parseFloat(e.target.value);
+    const effectiveMaxDuration = Math.min(duration, 60); // 60-second hard limit
     setStartTime(newStart);
-    // Ensure end time maintains max duration constraint
-    if (endTime - newStart > maxDuration) {
-      setEndTime(newStart + maxDuration);
+
+    // Ensure end time maintains 60-second constraint
+    if (endTime - newStart > effectiveMaxDuration) {
+      setEndTime(newStart + effectiveMaxDuration);
     }
     if (newStart >= endTime) {
-      setEndTime(Math.min(newStart + 1, duration));
+      setEndTime(Math.min(newStart + 1, duration, newStart + effectiveMaxDuration));
     }
     // Seek video to start position
     if (videoRef.current) {
@@ -100,10 +106,12 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
   // Handle end time change
   const handleEndChange = (e) => {
     const newEnd = parseFloat(e.target.value);
+    const effectiveMaxDuration = Math.min(duration, 60); // 60-second hard limit
     setEndTime(newEnd);
-    // Ensure start time maintains max duration constraint
-    if (newEnd - startTime > maxDuration) {
-      setStartTime(newEnd - maxDuration);
+
+    // Ensure start time maintains 60-second constraint
+    if (newEnd - startTime > effectiveMaxDuration) {
+      setStartTime(newEnd - effectiveMaxDuration);
     }
     if (newEnd <= startTime) {
       setStartTime(Math.max(newEnd - 1, 0));
@@ -133,7 +141,8 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
 
   // Calculate selected duration
   const selectedDuration = endTime - startTime;
-  const isValidSelection = selectedDuration > 0 && selectedDuration <= maxDuration;
+  const effectiveMaxDuration = Math.min(duration, 60); // 60-second hard limit
+  const isValidSelection = selectedDuration > 0 && selectedDuration <= effectiveMaxDuration;
 
   // Handle confirm
   const handleConfirm = () => {
@@ -153,7 +162,10 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
       <div className="trimmer-header">
         <h3>Select Video Segment</h3>
         <p className="trimmer-subtitle">
-          Select the segment to analyze (up to {Math.floor(maxDuration / 60)} minutes)
+          {duration > 60
+            ? "Select up to 60 seconds to analyze (1 minute maximum)"
+            : `Select the segment to analyze (up to ${Math.floor(duration)} seconds)`
+          }
         </p>
       </div>
 
@@ -179,7 +191,7 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
         <div className="timeline">
           {/* Background track */}
           <div className="timeline-track" />
-          
+
           {/* Selected range highlight */}
           <div
             className="timeline-selection"
@@ -188,13 +200,13 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
               width: `${((endTime - startTime) / duration) * 100}%`,
             }}
           />
-          
+
           {/* Current playhead */}
           <div
             className="timeline-playhead"
             style={{ left: `${(currentTime / duration) * 100}%` }}
           />
-          
+
           {/* Start handle */}
           <input
             type="range"
@@ -205,7 +217,7 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
             value={startTime}
             onChange={handleStartChange}
           />
-          
+
           {/* End handle */}
           <input
             type="range"
@@ -241,10 +253,10 @@ function VideoTrimmer({ videoFile, onConfirm, onCancel, maxDuration = 300 }) {
             </span>
           </div>
         </div>
-        
-        {selectedDuration > maxDuration && (
+
+        {selectedDuration > Math.min(duration, 60) && (
           <p className="trim-warning">
-            ⚠️ Selection exceeds {maxDuration}s limit. Adjust the range.
+            ⚠️ Selection exceeds {Math.min(duration, 60)}s limit. Adjust the range.
           </p>
         )}
       </div>

@@ -46,6 +46,14 @@ class MetricsPayload(TypedDict):
     avg_velocity: float
     max_velocity: float
     body_alignment: list[float]
+    # New advanced metrics
+    entry_exit_metrics: dict[str, float]
+    streamline_scores: list[float]
+    avg_streamline: float
+    max_streamline: float
+    propulsion_efficiency: float
+    slipping_percentage: float
+    effective_stroke_percentage: float
 
 
 @dataclass(slots=True)
@@ -125,6 +133,13 @@ def compute_biomechanics_metrics(
             "avg_velocity": 0.0,
             "max_velocity": 0.0,
             "body_alignment": [],
+            "entry_exit_metrics": {},
+            "streamline_scores": [],
+            "avg_streamline": 0.0,
+            "max_streamline": 0.0,
+            "propulsion_efficiency": 0.0,
+            "slipping_percentage": 0.0,
+            "effective_stroke_percentage": 0.0,
         }
     
     frame_numbers = [pose.frame_index for pose in poses2d_list]
@@ -318,6 +333,29 @@ def compute_biomechanics_metrics(
         "body_alignment": [float(a) for a in body_alignment],
     }
     
+    # Calculate new advanced metrics
+    # Entry/Exit Mechanics
+    entry_exit = analyze_entry_exit_mechanics(keypoints_data, fps)
+    
+    # Streamline Score
+    streamline_metrics = calculate_streamline_score(keypoints_data)
+    
+    # Propulsion Efficiency
+    propulsion_metrics = analyze_propulsion_efficiency(
+        keypoints_data,
+        {"hand_left": hand_left_velocities, "hand_right": hand_right_velocities},
+        fps
+    )
+    
+    # Add new metrics to payload
+    metrics["entry_exit_metrics"] = entry_exit
+    metrics["streamline_scores"] = streamline_metrics["streamline_scores"]
+    metrics["avg_streamline"] = streamline_metrics["avg_streamline"]
+    metrics["max_streamline"] = streamline_metrics["max_streamline"]
+    metrics["propulsion_efficiency"] = propulsion_metrics["propulsion_efficiency"]
+    metrics["slipping_percentage"] = propulsion_metrics["slipping_percentage"]
+    metrics["effective_stroke_percentage"] = propulsion_metrics["effective_stroke_percentage"]
+    
     return metrics
 
 
@@ -408,6 +446,243 @@ def segment_stroke_phases(
     return phases
 
 
+def analyze_entry_exit_mechanics(keypoints_data: list[dict], fps: float = 30.0) -> dict[str, float]:
+    """
+    Analyze hand entry and exit mechanics to detect technique quality.
+    
+    Entry analysis:
+    - Entry angle (angle of hand relative to water surface)
+    - Entry position (overreach detection)
+    - Entry smoothness
+    
+    Exit analysis:
+    - Exit timing (relative to hip position)
+    - Exit position quality
+    """
+    entry_scores = []
+    exit_scores = []
+    entry_events = 0
+    exit_events = 0
+    
+    # Track wrist velocities to detect entry/exit phases
+    for i in range(1, len(keypoints_data)):
+        kp_prev = keypoints_data[i-1]
+        kp_curr = keypoints_data[i]
+        
+        # Analyze left hand
+        if kp_prev["left_wrist"] is not None and kp_curr["left_wrist"] is not None:
+            wrist_vel_y = kp_curr["left_wrist"][1] - kp_prev["left_wrist"][1]
+            
+            # Entry detection: wrist moving down (y increasing, positive direction is down)
+            if wrist_vel_y > 0.5:  # Moving downward threshold
+                entry_events += 1
+                if (kp_curr["left_shoulder"] is not None and 
+                    kp_curr["left_elbow"] is not None):
+                    # Calculate entry angle
+                    entry_angle = calculate_angle(
+                        kp_curr["left_shoulder"],
+                        kp_curr["left_elbow"],
+                        kp_curr["left_wrist"]
+                    )
+                    # Good entry: 40-60 degree angle
+                    if 40 <= entry_angle <= 60:
+                        entry_scores.append(90)
+                    elif 35 <= entry_angle <= 70:
+                        entry_scores.append(70)
+                    else:
+                        entry_scores.append(50)
+            
+            # Exit detection: wrist moving up (y decreasing)
+            elif wrist_vel_y < -0.5:  # Moving upward threshold
+                exit_events += 1
+                if kp_curr["left_hip"] is not None:
+                    # Check exit position relative to hip
+                    exit_position_x = kp_curr["left_wrist"][0] - kp_curr["left_hip"][0]
+                    # Good exit: near hip (not too early, not too late)
+                    if abs(exit_position_x) < 0.1:
+                        exit_scores.append(90)
+                    elif abs(exit_position_x) < 0.2:
+                        exit_scores.append(70)
+                    else:
+                        exit_scores.append(50)
+        
+        # Analyze right hand (same logic)
+        if kp_prev["right_wrist"] is not None and kp_curr["right_wrist"] is not None:
+            wrist_vel_y = kp_curr["right_wrist"][1] - kp_prev["right_wrist"][1]
+            
+            if wrist_vel_y > 0.5:
+                entry_events += 1
+                if (kp_curr["right_shoulder"] is not None and 
+                    kp_curr["right_elbow"] is not None):
+                    entry_angle = calculate_angle(
+                        kp_curr["right_shoulder"],
+                        kp_curr["right_elbow"],
+                        kp_curr["right_wrist"]
+                    )
+                    if 40 <= entry_angle <= 60:
+                        entry_scores.append(90)
+                    elif 35 <= entry_angle <= 70:
+                        entry_scores.append(70)
+                    else:
+                        entry_scores.append(50)
+            
+            elif wrist_vel_y < -0.5:
+                exit_events += 1
+                if kp_curr["right_hip"] is not None:
+                    exit_position_x = kp_curr["right_wrist"][0] - kp_curr["right_hip"][0]
+                    if abs(exit_position_x) < 0.1:
+                        exit_scores.append(90)
+                    elif abs(exit_position_x) < 0.2:
+                        exit_scores.append(70)
+                    else:
+                        exit_scores.append(50)
+    
+    return {
+        "avg_entry_score": float(np.mean(entry_scores)) if entry_scores else 0.0,
+        "avg_exit_score": float(np.mean(exit_scores)) if exit_scores else 0.0,
+        "entry_events": float(entry_events),
+        "exit_events": float(exit_events),
+    }
+
+
+def calculate_streamline_score(keypoints_data: list[dict]) -> dict[str, any]:
+    """
+    Calculate streamline score (0-100) based on body position efficiency.
+    
+    Measures:
+    - Head-spine-hip alignment
+    - Hip height (body flatness in water)
+    - Leg alignment and position
+    """
+    streamline_scores = []
+    
+    for kp in keypoints_data:
+        penalties = 0.0
+        max_penalties = 3.0  # Three components
+        
+        # Component 1: Head-spine alignment
+        if (kp["nose"] is not None and 
+            kp["left_shoulder"] is not None and 
+            kp["right_shoulder"] is not None and
+            kp["left_hip"] is not None and 
+            kp["right_hip"] is not None):
+            
+            shoulder_mid = (kp["left_shoulder"] + kp["right_shoulder"]) / 2
+            hip_mid = (kp["left_hip"] + kp["right_hip"]) / 2
+            
+            # Calculate head elevation relative to body line
+            # Ideal: head in line with spine
+            head_y = kp["nose"][1]
+            body_line_y = shoulder_mid[1]
+            head_deviation = abs(head_y - body_line_y)
+            
+            # Normalize penalty (0 = perfect, 1 = very bad)
+            head_penalty = min(head_deviation * 2, 1.0)
+            penalties += head_penalty
+            
+            # Component 2: Hip drop (body flatness)
+            # Ideal: hips at same level as shoulders
+            hip_drop = abs(hip_mid[1] - shoulder_mid[1])
+            hip_penalty = min(hip_drop * 1.5, 1.0)
+            penalties += hip_penalty
+        else:
+            penalties += 2.0  # Can't calculate, assume poor
+        
+        # Component 3: Leg alignment
+        if (kp["left_knee"] is not None and 
+            kp["right_knee"] is not None and
+            kp["left_ankle"] is not None and 
+            kp["right_ankle"] is not None):
+            
+            # Measure leg spread (legs should be close together)
+            knee_spread = np.linalg.norm(kp["left_knee"] - kp["right_knee"])
+            ankle_spread = np.linalg.norm(kp["left_ankle"] - kp["right_ankle"])
+            avg_spread = (knee_spread + ankle_spread) / 2
+            
+            # Normalize penalty
+            leg_penalty = min(avg_spread * 3, 1.0)
+            penalties += leg_penalty
+        else:
+            penalties += 1.0
+        
+        # Calculate score (100 = perfect streamline)
+        score = 100 * (1 - penalties / max_penalties)
+        streamline_scores.append(max(0, min(100, score)))  # Clamp to 0-100
+    
+    return {
+        "streamline_scores": streamline_scores,
+        "avg_streamline": float(np.mean(streamline_scores)) if streamline_scores else 0.0,
+        "max_streamline": float(np.max(streamline_scores)) if streamline_scores else 0.0,
+        "streamline_consistency": float(1 - np.std(streamline_scores) / (np.mean(streamline_scores) + 1e-8)) if streamline_scores else 0.0,
+    }
+
+
+def analyze_propulsion_efficiency(
+    keypoints_data: list[dict],
+    hand_velocities: dict[str, list[float]],
+    fps: float = 30.0
+) -> dict[str, float]:
+    """
+    Analyze propulsion efficiency to detect effective pulling vs slipping.
+    
+    Slipping: High hand velocity but no forward body movement
+    Effective: Hand velocity translates to body acceleration
+    """
+    # Calculate body center velocity as proxy for forward movement
+    body_centers = []
+    for kp in keypoints_data:
+        if (kp["left_shoulder"] is not None and 
+            kp["right_shoulder"] is not None and
+            kp["left_hip"] is not None and 
+            kp["right_hip"] is not None):
+            shoulder_mid = (kp["left_shoulder"] + kp["right_shoulder"]) / 2
+            hip_mid = (kp["left_hip"] + kp["right_hip"]) / 2
+            body_center = (shoulder_mid + hip_mid) / 2
+            body_centers.append((body_center[0], body_center[1]))
+        else:
+            body_centers.append((0.0, 0.0))
+    
+    # Calculate body velocity
+    body_velocities = calculate_velocity(body_centers, fps)
+    
+    # Analyze propulsion efficiency
+    propulsion_events = []
+    slipping_frames = 0
+    effective_frames = 0
+    total_frames = len(keypoints_data)
+    
+    hand_left_vel = hand_velocities.get("hand_left", [])
+    hand_right_vel = hand_velocities.get("hand_right", [])
+    
+    for i in range(1, min(len(hand_left_vel), len(hand_right_vel), len(body_velocities))):
+        avg_hand_vel = (hand_left_vel[i] + hand_right_vel[i]) / 2
+        body_vel = body_velocities[i]
+        body_accel = body_velocities[i] - body_velocities[i-1] if i > 0 else 0
+        
+        # Define thresholds
+        hand_vel_threshold = 1.0  # Significant hand movement
+        body_accel_threshold = 0.05  # Body actually accelerating
+        
+        if avg_hand_vel > hand_vel_threshold:
+            # Hand is moving - is it effective?
+            if body_accel > body_accel_threshold:
+                # Effective propulsion
+                effective_frames += 1
+                efficiency = min(body_accel / avg_hand_vel, 1.0)  # How much hand movement→body movement
+                propulsion_events.append(efficiency * 100)
+            elif body_accel < -body_accel_threshold:
+                # Actually decelerating - slipping
+                slipping_frames += 1
+            # else: neutral, not counted either way
+    
+    return {
+        "propulsion_efficiency": float(np.mean(propulsion_events)) if propulsion_events else 0.0,
+        "slipping_percentage": float((slipping_frames / total_frames) * 100) if total_frames > 0 else 0.0,
+        "effective_stroke_percentage": float((effective_frames / total_frames) * 100) if total_frames > 0 else 0.0,
+    }
+
+
+
 def generate_narrative_feedback(
     metrics: MetricsPayload, stroke_phases: Iterable[StrokePhase]
 ) -> dict[str, str]:
@@ -446,12 +721,59 @@ def generate_narrative_feedback(
         recommendations.append("Focus on maintaining power per stroke at higher rates.")
     
     # Velocity analysis
+    if avg_velocity > 2.0:
+        key_takeaways.append(f"Strong average velocity of {avg_velocity:.2f} m/s.")
+    else:
+        key_takeaways.append(f"Average velocity is {avg_velocity:.2f} m/s.")
+        recommendations.append("Work on pull power and kick propulsion to increase forward speed.")
+    
     if avg_velocity > 0:
         velocity_consistency = max_velocity / avg_velocity if avg_velocity > 0 else 1.0
         if velocity_consistency > 2.5:
             recommendations.append("High velocity variation detected - work on consistent power application.")
         elif velocity_consistency < 1.3:
             recommendations.append("Good velocity consistency throughout the stroke.")
+    
+    # Streamline Score analysis
+    avg_streamline = metrics.get("avg_streamline", 0)
+    if avg_streamline >= 80:
+        key_takeaways.append(f"✅ Excellent streamline position ({avg_streamline:.1f}/100).")
+    elif avg_streamline >= 65:
+        key_takeaways.append(f"Good body position with streamline score of {avg_streamline:.1f}/100.")
+        recommendations.append("Focus on keeping hips high and head neutral to improve streamline.")
+    else:
+        key_takeaways.append(f"⚠️ Streamline needs improvement ({avg_streamline:.1f}/100).")
+        recommendations.append("Work on core stability and body position drills. Keep head down and hips up.")
+    
+    # Propulsion Efficiency analysis
+    prop_efficiency = metrics.get("propulsion_efficiency", 0)
+    slipping_pct = metrics.get("slipping_percentage", 0)
+    if slipping_pct > 15:
+        key_takeaways.append(f"⚠️ {slipping_pct:.1f}% of strokes show hand slipping.")
+        recommendations.append("Focus on high elbow catch and early vertical forearm to 'grip' the water better.")
+    elif slipping_pct > 8:
+        key_takeaways.append(f"Moderate hand slipping detected ({slipping_pct:.1f}%).")
+        recommendations.append("Work on catch mechanics to improve water connection.")
+    else:
+        key_takeaways.append("✅ Excellent propulsion with minimal hand slipping.")
+    
+    # Entry/Exit Mechanics
+    entry_exit = metrics.get("entry_exit_metrics", {})
+    avg_entry = entry_exit.get("avg_entry_score", 0)
+    avg_exit = entry_exit.get("avg_exit_score", 0)
+    if avg_entry > 0:
+        if avg_entry >= 80:
+            key_takeaways.append(f"✅ Hand entry mechanics are strong ({avg_entry:.1f}/100).")
+        elif avg_entry >= 60:
+            key_takeaways.append(f"Hand entry is decent ({avg_entry:.1f}/100).")
+            recommendations.append("Focus on entering at 45° angle, fingertips first, in front of shoulder.")
+        else:
+            key_takeaways.append(f"⚠️ Hand entry needs work ({avg_entry:.1f}/100).")
+            recommendations.append("Practice fingertip entry drills. Avoid overreaching or slapping water.")
+    
+    if avg_exit > 0:
+        if avg_exit < 65:
+            recommendations.append("Work on finishing stroke past hip for complete propulsion.")
     
     # Body roll analysis
     body_roll = metrics.get("body_roll", [])

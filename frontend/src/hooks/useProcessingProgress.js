@@ -12,7 +12,7 @@ export function useProcessingProgress() {
     isProcessing: false,
     videoId: null,
   });
-  
+
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
@@ -83,7 +83,7 @@ export function useProcessingProgress() {
       ...prev,
       stage: "upload",
       progress: Math.min(percent * 0.05, 5), // Upload is 0-5% of total
-      message: `Uploading... ${Math.round(percent)}%`,
+      message: percent >= 100 ? "" : `Uploading... ${Math.round(percent)}%`, // Clear message when done
     }));
   }, []);
 

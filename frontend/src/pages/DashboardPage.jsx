@@ -183,7 +183,7 @@ function DashboardPage() {
               videoFile={pendingFile}
               onConfirm={handleTrimConfirm}
               onCancel={handleTrimCancel}
-              maxDuration={300}
+              maxDuration={60}
             />
           </Suspense>
         </div>
